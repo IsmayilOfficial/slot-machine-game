@@ -1,88 +1,79 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import {
+  PAYTABLE,
+  SPIN_COST,
+  SYMBOLS,
+  evaluateSpin,
+  spinReels
+} from "./gameLogic";
 
-const symbols = ["🍒", "🍋", "🔔", "7️⃣"];
-const spinCost = 10;
+const spinDuration = 1600;
+const spinTick = 100;
+const startingBalance = 1000;
 
 function App() {
-  const [balance, setBalance] = useState(1000);
-  const [reels, setReels] = useState(["🍒", "🍋", "🔔"]);
-  const [result, setResult] = useState("Good luck!");
+  const [balance, setBalance] = useState(startingBalance);
+  const [reels, setReels] = useState(spinReels);
+  const [outcome, setOutcome] = useState({
+    tier: "none",
+    message: "Good luck!"
+  });
   const [isSpinning, setIsSpinning] = useState(false);
-  const [winners, setWinners] = useState([]);
+  const [winningIndexes, setWinningIndexes] = useState([]);
   const spinInterval = useRef(null);
 
+  useEffect(() => () => clearInterval(spinInterval.current), []);
+
+  // Keep the wallet pure: one change per spin phase, never nested in a setter.
+  function changeBalance(amount) {
+    setBalance(current => current + amount);
+  }
+
   function spin() {
-    if (isSpinning || balance < spinCost) {
+    if (isSpinning || balance < SPIN_COST) {
       return;
     }
 
     setIsSpinning(true);
-    setWinners([]);
-    setBalance(currentBalance => currentBalance - spinCost);
-    setResult("Spinning...");
+    setWinningIndexes([]);
+    setOutcome({ tier: "none", message: "Spinning..." });
+    changeBalance(-SPIN_COST);
 
-    let count = 0;
+    let ticks = 0;
 
     spinInterval.current = setInterval(() => {
-      setReels(
-        reels.map(() =>
-          symbols[Math.floor(Math.random() * symbols.length)]
-        )
-      );
+      setReels(spinReels());
 
-      count++;
+      ticks++;
 
-      if (count >= 16) {
+      if (ticks >= spinDuration / spinTick) {
         clearInterval(spinInterval.current);
-        finishSpin();
+        settle();
       }
-    }, 100);
+    }, spinTick);
   }
 
-  function finishSpin() {
-    const finalReels = reels.map(() =>
-      symbols[Math.floor(Math.random() * symbols.length)]
-    );
+  function settle() {
+    const finalReels = spinReels();
+    const { tier, message, payout, winningIndexes: matched } =
+      evaluateSpin(finalReels);
 
     setReels(finalReels);
-
-    const counts = {};
-
-    finalReels.forEach(symbol => {
-      counts[symbol] = (counts[symbol] || 0) + 1;
-    });
-
-    const highestMatch = Math.max(...Object.values(counts));
-    let winnings = 0;
-
-    if (highestMatch === 3) {
-      winnings = 100;
-      setResult("Jackpot! You won 100 coins!");
-    } else if (highestMatch === 2) {
-      winnings = 20;
-      setResult("Two match! You won 20 coins!");
-    } else {
-      setResult("No match. Try again!");
-    }
-
-    if (highestMatch >= 2) {
-      setWinners(finalReels);
-    }
-
-    setBalance(currentBalance => {
-      const newBalance = currentBalance + winnings;
-
-      if (newBalance < spinCost) {
-        setResult(previousResult =>
-          previousResult + " You're out of coins!"
-        );
-      }
-
-      return newBalance;
-    });
-
+    setWinningIndexes(matched);
+    setOutcome({ tier, message });
+    changeBalance(payout);
     setIsSpinning(false);
   }
+
+  function resetBalance() {
+    clearInterval(spinInterval.current);
+    setIsSpinning(false);
+    setWinningIndexes([]);
+    setOutcome({ tier: "none", message: "Fresh stack. Good luck!" });
+    setBalance(startingBalance);
+  }
+
+  const outOfCoins = !isSpinning && balance < SPIN_COST;
 
   return (
     <main className="machine">
@@ -94,36 +85,60 @@ function App() {
       </div>
 
       <div className="reels" aria-label="Slot machine reels">
-        {reels.map((symbol, index) => (
-          <div
-            key={index}
-            className={[
-              "reel",
-              isSpinning ? "spinning" : "",
-              winners.includes(symbol) ? "winner" : ""
-            ].join(" ")}
-          >
-            {symbol}
-          </div>
-        ))}
+        {reels.map((symbol, index) => {
+          const isWinner = winningIndexes.includes(index);
+          const isJackpot = isWinner && outcome.tier === "jackpot";
+
+          return (
+            <div
+              key={index}
+              className={[
+                "reel",
+                isSpinning ? "spinning" : "",
+                isWinner ? "winner" : "",
+                isJackpot ? "jackpot" : ""
+              ].join(" ")}
+            >
+              {symbol}
+            </div>
+          );
+        })}
       </div>
 
-      <button
-        onClick={spin}
-        disabled={isSpinning || balance < spinCost}
-      >
-        Spin — 10 coins
+      <button onClick={spin} disabled={isSpinning || balance < SPIN_COST}>
+        Spin — {SPIN_COST} coins
       </button>
 
-      <p className="result" aria-live="polite">
-        {result}
+      {outOfCoins ? (
+        <button className="reset" onClick={resetBalance}>
+          Reset to {startingBalance} coins
+        </button>
+      ) : null}
+
+      <p className={`result ${outcome.tier}`} aria-live="polite">
+        {outcome.message}
+        {outOfCoins ? " You're out of coins!" : ""}
       </p>
 
-      <div className="payouts">
-        3 matching symbols: win 100 coins
-        <br />
-        2 matching symbols: win 20 coins
-      </div>
+      <table className="payouts">
+        <caption>Payouts</caption>
+        <thead>
+          <tr>
+            <th scope="col">Symbol</th>
+            <th scope="col">2 match</th>
+            <th scope="col">3 match</th>
+          </tr>
+        </thead>
+        <tbody>
+          {SYMBOLS.map(symbol => (
+            <tr key={symbol}>
+              <th scope="row">{symbol}</th>
+              <td>{PAYTABLE[symbol].two}</td>
+              <td>{PAYTABLE[symbol].three}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </main>
   );
 }

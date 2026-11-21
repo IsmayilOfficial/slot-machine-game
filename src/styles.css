@@ -78,6 +78,11 @@ h1 {
   animation: winnerPulse 0.5s ease-in-out 3;
 }
 
+.reel.jackpot {
+  animation: jackpotPulse 0.5s ease-in-out infinite;
+  border-color: #ff4d8d;
+}
+
 @keyframes reelSpin {
   0% {
     transform: translateY(-18px);
@@ -102,6 +107,19 @@ h1 {
     transform: scale(1.12);
     background: #fff176;
     box-shadow: 0 0 18px #ffe66d;
+  }
+}
+
+@keyframes jackpotPulse {
+  0%, 100% {
+    transform: scale(1);
+    background: #fff;
+    box-shadow: 0 0 8px #ffe66d;
+  }
+  50% {
+    transform: scale(1.16);
+    background: #ffe66d;
+    box-shadow: 0 0 28px #ff4d8d;
   }
 }
 
@@ -133,6 +151,27 @@ button:disabled {
   opacity: 0.6;
 }
 
+.reset {
+  display: block;
+  margin: 16px auto 0;
+  padding: 10px 24px;
+  font-size: 1rem;
+  color: #ffe8f3;
+  background: transparent;
+  border: 2px solid #ffd45a;
+  box-shadow: none;
+}
+
+.reset:hover:not(:disabled) {
+  color: #451431;
+  background: #ffd45a;
+  box-shadow: none;
+}
+
+.reset:active:not(:disabled) {
+  box-shadow: none;
+}
+
 .result {
   min-height: 28px;
   margin: 20px 0 0;
@@ -140,9 +179,39 @@ button:disabled {
   font-weight: bold;
 }
 
+.result.two,
+.result.three {
+  color: #ffe66d;
+}
+
+.result.jackpot {
+  color: #ffe66d;
+  text-shadow: 0 0 16px #ff4d8d;
+}
+
 .payouts {
+  width: 100%;
   margin-top: 20px;
   color: #ffe8f3;
   font-size: 0.9rem;
-  line-height: 1.6;
+  border-collapse: collapse;
+}
+
+.payouts caption {
+  margin-bottom: 8px;
+  color: #ffe66d;
+  font-weight: bold;
+}
+
+.payouts th,
+.payouts td {
+  padding: 4px 8px;
+  text-align: center;
+  border-bottom: 1px solid #ffffff33;
+}
+
+.payouts thead th {
+  color: #ffe66d;
+  font-size: 0.8rem;
+  text-transform: uppercase;
 }
